@@ -1,0 +1,47 @@
+name: Frontend Chat CI/CD
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: Production
+    steps:
+    - name: Deploy using ssh
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USERNAME }}
+        key: ${{ secrets.SSH_PRIVATE_KEY_FOR_VPS }}
+        port: 22
+        script: |
+          cd /var/www/chat_online/fe_chat
+          git checkout main
+          git fetch origin
+          git pull origin main
+          echo "📝 Creating .env file..."
+
+          # Xóa file .env cũ nếu tồn tại để tránh lỗi
+          rm -f .env 
+          
+          # Sử dụng echo và redirect vào file .env
+          # Lưu ý: Các secrets sẽ được truyền từ GitHub Secrets vào script này
+          echo "NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}" >> .env
+          echo "NEXT_PUBLIC_SOCKET_URL=${{ secrets.NEXT_PUBLIC_SOCKET_URL }}" >> .env
+          
+          echo "✅ .env file created successfully."
+          
+          # Stop và remove container cũ nếu tồn tại
+          docker stop chat-frontend-container || true
+          docker rm chat-frontend-container || true
+          
+          # Xóa image cũ để tránh tích tụ và tiết kiệm dung lượng
+          docker rmi chat-frontend || true
+          
+          # Build image mới
+          docker build -t chat-frontend .
+          
+          # Run container mới
+          docker run -d -p 4000:3000 --name chat-frontend-container chat-frontend
