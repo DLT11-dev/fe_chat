@@ -13,6 +13,8 @@ export interface SocketMessage {
   senderId: number
   receiverId: number
   isRead: boolean
+  isRecalled: boolean
+  recalledAt?: string
   createdAt: string
   updatedAt: string
   sender?: {
@@ -45,6 +47,9 @@ export interface SocketEvents {
   
   // Đánh dấu đã đọc
   mark_as_read: (data: { messageId: string }) => void
+  
+  // Thu hồi tin nhắn
+  recall_message: (data: { messageId: string }) => void
 }
 
 export interface SocketListeners {
@@ -68,6 +73,9 @@ export interface SocketListeners {
   
   // Tin nhắn đã được đánh dấu đọc
   message_marked_read: (data: { messageId: string }) => void
+  
+  // Tin nhắn đã được thu hồi
+  message_recalled: (data: { messageId: string }) => void
   
   // Lỗi
   error: (error: { message: string }) => void
