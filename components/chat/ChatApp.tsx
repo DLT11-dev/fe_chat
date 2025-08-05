@@ -45,7 +45,7 @@ export default function ChatApp() {
   // Load users
   const loadUsers = useCallback(async () => {
     try {
-      const data = await chatService.getUsers();
+      const data = await chatService.getUsers(20); // Giới hạn 20 users
       setUsers(data);
     } catch (error) {
       console.error("Error loading users:", error);

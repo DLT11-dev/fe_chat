@@ -5,6 +5,7 @@ export const API_URLS = {
   PROFILE: '/users/profile',
   LOGOUT: '/auth/logout',
   CHAT_MESSAGES: '/chat/messages',
+  USERS: '/users',
 }
 
 export default API_URLS

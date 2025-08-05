@@ -44,14 +44,14 @@ class ChatService {
     return httpService.get<Conversation[]>('/chat/conversations')
   }
 
-  // Lấy danh sách users (trừ user hiện tại)
-  async getUsers(): Promise<any[]> {
-    return httpService.get<any[]>('/users')
+  // Lấy danh sách users (trừ user hiện tại) - giới hạn 20 users
+  async getUsers(limit: number = 20, offset: number = 0): Promise<any[]> {
+    return httpService.get<any[]>(`${API_URLS.USERS}?limit=${limit}&offset=${offset}`)
   }
 
   // Tìm kiếm người dùng
-  async searchUsers(query: string, limit: number = 10): Promise<any[]> {
-    return httpService.get<any[]>(`/users/search?q=${encodeURIComponent(query)}&limit=${limit}`)
+  async searchUsers(query: string, limit: number = 20): Promise<any[]> {
+    return httpService.get<any[]>(`${API_URLS.USERS}/search?q=${encodeURIComponent(query)}&limit=${limit}`)
   }
 }
 
