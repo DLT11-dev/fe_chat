@@ -34,6 +34,11 @@ class ChatService {
     return httpService.delete<void>(`${API_URLS.CHAT_MESSAGES}/${messageId}`)
   }
 
+  // Thu hồi tin nhắn
+  async recallMessage(messageId: string): Promise<void> {
+    return httpService.put<void>(`${API_URLS.CHAT_MESSAGES}/${messageId}/recall`)
+  }
+
   // Lấy danh sách cuộc trò chuyện gần đây
   async getRecentConversations(): Promise<Conversation[]> {
     return httpService.get<Conversation[]>('/chat/conversations')

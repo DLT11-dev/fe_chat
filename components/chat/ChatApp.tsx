@@ -21,6 +21,8 @@ export default function ChatApp() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [typingUsers, setTypingUsers] = useState<{ [key: number]: string }>({});
+  const [hasInitialDataLoaded, setHasInitialDataLoaded] = useState(false);
+  const [markedAsReadUsers, setMarkedAsReadUsers] = useState<Set<number>>(new Set());
   
   // Thêm ref để theo dõi việc đã load data chưa
   const hasLoadedData = useRef(false);
@@ -28,15 +30,12 @@ export default function ChatApp() {
   const { user, isAuthenticated } = useAuthStore();
   const { socket, emit, on, isConnected } = useSocket();
 
-  // Log để debug re-render
-  console.log("🔄 ChatApp re-render - isAuthenticated:", isAuthenticated, "user:", user?.id, "hasLoadedData:", hasLoadedData.current);
+
 
   // Load conversations
   const loadConversations = useCallback(async () => {
     try {
-      console.log("📞 Loading conversations...");
       const data = await chatService.getRecentConversations();
-      console.log("📞 Conversations loaded:", data.length);
       setConversations(data);
     } catch (error) {
       console.error("Error loading conversations:", error);
@@ -46,9 +45,7 @@ export default function ChatApp() {
   // Load users
   const loadUsers = useCallback(async () => {
     try {
-      console.log("👥 Loading users...");
       const data = await chatService.getUsers();
-      console.log("👥 Users loaded:", data.length);
       setUsers(data);
     } catch (error) {
       console.error("Error loading users:", error);
@@ -103,10 +100,38 @@ export default function ChatApp() {
   const handleUserSelect = useCallback(
     (user: { id: number; username: string }) => {
       setSelectedUser(user);
+      // Reset markedAsReadUsers khi chọn user mới
+      setMarkedAsReadUsers(new Set());
       loadMessages(user.id);
     },
     [loadMessages]
   );
+
+  // Tự động đánh dấu tin nhắn đã đọc khi chọn user
+  useEffect(() => {
+    if (selectedUser && messages.length > 0 && !markedAsReadUsers.has(selectedUser.id)) {
+      // Đánh dấu tất cả tin nhắn từ user này là đã đọc
+      const markAllAsRead = async () => {
+        try {
+          await chatService.markAllMessagesAsRead(selectedUser.id);
+          
+          // Cập nhật trạng thái tin nhắn trong state
+          setMessages((prev) => 
+            prev.map(msg => 
+              msg.senderId === selectedUser.id ? { ...msg, isRead: true } : msg
+            )
+          );
+          
+          // Đánh dấu user này đã được đánh dấu đã đọc
+          setMarkedAsReadUsers(prev => new Set([...prev, selectedUser.id]));
+        } catch (error) {
+          console.error("Error marking messages as read:", error);
+        }
+      };
+      
+      markAllAsRead();
+    }
+  }, [selectedUser, messages.length, markedAsReadUsers]); // Bỏ loadConversations khỏi dependencies
 
   // Handle send message
   const handleSendMessage = useCallback(
@@ -127,23 +152,59 @@ export default function ChatApp() {
     [selectedUser, emit]
   );
 
+  // Handle recall message
+  const handleRecallMessage = useCallback(
+    async (messageId: string) => {
+      try {
+        // Gửi sự kiện thu hồi qua WebSocket
+        emit("recall_message", { messageId });
+      } catch (error) {
+        console.error("Error recalling message:", error);
+      }
+    },
+    [emit]
+  );
+
   // Socket event listeners
   useEffect(() => {
     if (!isConnected) return;
 
     // Listen for new messages
-    const unsubscribeNewMessage = on("new_message", (message: Message) => {
-      console.log("📨 Received new message:", message);
+    const unsubscribeNewMessage = on("new_message", async (message: Message) => {
       setMessages((prev) => [...prev, message]);
 
-      // Update conversations list
-      loadConversations();
+      // Nếu tin nhắn từ người đang chat và đang ở trong cuộc trò chuyện với họ
+      if (selectedUser && message.senderId === selectedUser.id) {
+        try {
+          // Đánh dấu tin nhắn đã đọc ngay lập tức
+          await chatService.markMessageAsRead(message.id);
+          
+          // Cập nhật trạng thái tin nhắn trong state
+          setMessages((prev) => 
+            prev.map(msg => 
+              msg.id === message.id ? { ...msg, isRead: true } : msg
+            )
+          );
+          
+
+        } catch (error) {
+          console.error("Error marking message as read:", error);
+        }
+      }
     });
 
     // Listen for sent messages
     const unsubscribeMessageSent = on("message_sent", (message: Message) => {
-      console.log("✅ Message sent confirmation:", message);
       setMessages((prev) => [...prev, message]);
+    });
+
+    // Listen for recalled messages
+    const unsubscribeMessageRecalled = on("message_recalled", (data: { messageId: string }) => {
+      setMessages((prev) => 
+        prev.map(msg => 
+          msg.id === data.messageId ? { ...msg, isRecalled: true, recalledAt: new Date().toISOString() } : msg
+        )
+      );
     });
 
     // Listen for typing events
@@ -173,17 +234,17 @@ export default function ChatApp() {
     return () => {
       unsubscribeNewMessage();
       unsubscribeMessageSent();
+      unsubscribeMessageRecalled();
       unsubscribeUserTyping();
       unsubscribeUserStoppedTyping();
       unsubscribeError();
     };
-  }, [isConnected, on, loadConversations]);
+  }, [isConnected, on]); // Bỏ loadConversations khỏi dependencies
 
   // Load initial data - chỉ load một lần khi authenticated
   useEffect(() => {
-    if (isAuthenticated && user && !hasLoadedData.current) {
-      console.log("🚀 Loading initial data for the first time...");
-      hasLoadedData.current = true;
+    if (isAuthenticated && user && !hasInitialDataLoaded) {
+      setHasInitialDataLoaded(true);
       
       // Load data sequentially để tránh race condition
       const loadInitialData = async () => {
@@ -197,7 +258,19 @@ export default function ChatApp() {
       
       loadInitialData();
     }
-  }, [isAuthenticated, user]); // Bỏ loadConversations và loadUsers khỏi dependencies
+  }, [isAuthenticated, user, hasInitialDataLoaded]); // Bỏ loadConversations và loadUsers khỏi dependencies
+
+  // Cập nhật conversations khi có thay đổi về tin nhắn đã đọc
+  useEffect(() => {
+    if (hasInitialDataLoaded && markedAsReadUsers.size > 0) {
+      // Debounce để tránh gọi quá nhiều lần
+      const timeoutId = setTimeout(() => {
+        loadConversations();
+      }, 500);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [markedAsReadUsers, hasInitialDataLoaded]);
 
   // Handle typing
   const handleTyping = useCallback(
@@ -231,6 +304,31 @@ export default function ChatApp() {
             currentUserId={user?.id ? Number(user.id) : undefined}
             loading={loading}
             typingUsers={typingUsers}
+            onMessagesViewed={() => {
+              // Đánh dấu tất cả tin nhắn đã đọc khi user xem hết tin nhắn
+              if (selectedUser && messages.length > 0 && !markedAsReadUsers.has(selectedUser.id)) {
+                const markAllAsRead = async () => {
+                  try {
+                    await chatService.markAllMessagesAsRead(selectedUser.id);
+                    
+                    // Cập nhật trạng thái tin nhắn trong state
+                    setMessages((prev) => 
+                      prev.map(msg => 
+                        msg.senderId === selectedUser.id ? { ...msg, isRead: true } : msg
+                      )
+                    );
+                    
+                    // Đánh dấu user này đã được đánh dấu đã đọc
+                    setMarkedAsReadUsers(prev => new Set([...prev, selectedUser.id]));
+                  } catch (error) {
+                    console.error("Error marking messages as read:", error);
+                  }
+                };
+                
+                markAllAsRead();
+              }
+            }}
+            onRecallMessage={handleRecallMessage}
           />
           <MessageInput
             onSend={handleSendMessage}

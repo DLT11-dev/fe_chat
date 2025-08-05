@@ -5,6 +5,8 @@ export interface Message {
     senderId: number
     receiverId: number
     isRead: boolean
+    isRecalled: boolean
+    recalledAt?: string
     createdAt: string
     updatedAt: string
     sender?: {

@@ -54,7 +54,7 @@ export const useAuthStore = create<AuthStore>()(
           // Map backend response to frontend format
           const user = mapBackendUserToFrontend(response.user)
           
-          console.log("🔐 Login successful, setting auth state...");
+    
           set({
             user,
             token: response.access_token,
@@ -145,12 +145,12 @@ export const useAuthStore = create<AuthStore>()(
 
         // Nếu token vừa được tạo từ đăng nhập, không cần refresh
         if (isTokenFresh) {
-          console.log("🔄 Token is fresh, skipping refresh");
+  
           set({ isTokenFresh: false }) // Reset flag sau lần đầu
           return
         }
 
-        console.log("🔄 Checking auth with refresh token...");
+
         set({ isLoading: true })
         
         try {

@@ -6,7 +6,7 @@ import PAGE_URLS from '@/common/constants/pageUrls'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
 
-console.log('API_BASE_URL', API_BASE_URL)
+
 
 const parseToken = (token: string) => {
   return `Bearer ${token}`
@@ -65,7 +65,7 @@ class HttpService {
         if (token && config.headers) {
           config.headers.Authorization = parseToken(token)
         } else {
-          console.log('❌ No token found for request:', config.url)
+      
         }
         
         return config
@@ -87,7 +87,7 @@ class HttpService {
         }
 
         if (statusCode === 401) {
-          console.log('Token is expired, refreshing token ...')
+  
           const refreshToken = getRefreshToken()
 
           if (!refreshToken) {
